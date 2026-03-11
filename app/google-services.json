@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "226541587422",
+    "project_id": "saferouteplus-546d9",
+    "storage_bucket": "saferouteplus-546d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:226541587422:android:c62d2a0c66dd14ca8b2b4f",
+        "android_client_info": {
+          "package_name": "com.imshal.saferouteplus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnnoQD3jHnNvMglUKgOmuINmGDUXXLxEs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
