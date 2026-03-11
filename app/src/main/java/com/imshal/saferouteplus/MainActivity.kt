@@ -81,19 +81,23 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             db.collection("reports")
                 .add(report)
                 .addOnSuccessListener {
+                        documentReference ->
+
+                    val marker = mMap.addMarker(
+                        MarkerOptions()
+                            .position(latLng)
+                            .title(issueType)
+                            .snippet(descriptionText)
+                            .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issueType)))
+                    )
+
+                    marker?.tag = documentReference.id
+
                     Toast.makeText(this, "Report saved to database", Toast.LENGTH_SHORT).show()
                 }
                 .addOnFailureListener { e ->
                     Toast.makeText(this, "Error saving report", Toast.LENGTH_SHORT).show()
                 }
-
-            val markerOptions = MarkerOptions()
-                .position(latLng)
-                .title(issueType)
-                .snippet(descriptionText)
-                .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issueType)))
-
-            mMap.addMarker(markerOptions)
 
             dialog.dismiss()
 
@@ -119,13 +123,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     val position = LatLng(lat, lng)
 
-                    mMap.addMarker(
+                    val marker = mMap.addMarker(
                         MarkerOptions()
                             .position(position)
                             .title(issue)
                             .snippet(description)
                             .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issue ?: "Other")))
                     )
+
+                    marker?.tag = doc.id
                 }
             }
     }
@@ -149,6 +155,31 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                 reportMode = false
             }
+        }
+        mMap.setOnMarkerClickListener { marker ->
+
+            AlertDialog.Builder(this)
+                .setTitle("Delete Report")
+                .setMessage("Do you want to delete this report?")
+                .setPositiveButton("Delete") { _, _ ->
+
+                    val docId = marker.tag as? String
+
+                    if (docId != null) {
+
+                        db.collection("reports")
+                            .document(docId)
+                            .delete()
+
+                        marker.remove()
+
+                        Toast.makeText(this, "Report deleted", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+
+            true
         }
     }
 
