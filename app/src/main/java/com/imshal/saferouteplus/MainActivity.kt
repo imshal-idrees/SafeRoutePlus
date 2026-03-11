@@ -15,6 +15,7 @@ import android.app.AlertDialog
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
@@ -90,6 +91,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 .position(latLng)
                 .title(issueType)
                 .snippet(descriptionText)
+                .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issueType)))
 
             mMap.addMarker(markerOptions)
 
@@ -122,6 +124,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             .position(position)
                             .title(issue)
                             .snippet(description)
+                            .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issue ?: "Other")))
                     )
                 }
             }
@@ -148,4 +151,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
+
+    private fun getMarkerColor(issueType: String): Float {
+        return when (issueType) {
+            "Poor Lighting" -> BitmapDescriptorFactory.HUE_YELLOW
+            "Suspicious Activity" -> BitmapDescriptorFactory.HUE_ORANGE
+            "Unsafe Path" -> BitmapDescriptorFactory.HUE_BLUE
+            "Harassment" -> BitmapDescriptorFactory.HUE_RED
+            else -> BitmapDescriptorFactory.HUE_VIOLET
+        }
+    }
+
 }
