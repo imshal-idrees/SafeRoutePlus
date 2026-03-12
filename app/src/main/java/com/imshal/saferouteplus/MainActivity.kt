@@ -16,10 +16,14 @@ import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.maps.android.heatmaps.HeatmapTileProvider
+import com.google.android.gms.maps.model.TileOverlayOptions
+import java.util.ArrayList
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private val db = FirebaseFirestore.getInstance()
+    private val heatmapPoints = ArrayList<LatLng>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,6 +126,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     val description = doc.getString("description")
 
                     val position = LatLng(lat, lng)
+                    heatmapPoints.add(position)
 
                     val marker = mMap.addMarker(
                         MarkerOptions()
@@ -133,6 +138,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     marker?.tag = doc.id
                 }
+                val provider = HeatmapTileProvider.Builder()
+                    .data(heatmapPoints)
+                    .radius(50)
+                    .build()
+
+                mMap.addTileOverlay(TileOverlayOptions().tileProvider(provider))
             }
     }
 
