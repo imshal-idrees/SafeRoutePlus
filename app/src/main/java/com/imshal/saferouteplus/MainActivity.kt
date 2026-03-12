@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private val db = FirebaseFirestore.getInstance()
     private val heatmapPoints = ArrayList<LatLng>()
+    private val reportLocations = ArrayList<LatLng>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,6 +128,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     val position = LatLng(lat, lng)
                     heatmapPoints.add(position)
+                    reportLocations.add(position)
 
                     val marker = mMap.addMarker(
                         MarkerOptions()
@@ -163,8 +165,24 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             if (reportMode) {
 
                 showReportDialog(latLng)
-
                 reportMode = false
+
+            } else {
+
+                val score = calculateSafetyScore(latLng)
+
+                val safetyLevel = when {
+                    score == 0 -> "Safe"
+                    score <= 3 -> "Moderate"
+                    score <= 6 -> "Risky"
+                    else -> "Dangerous"
+                }
+
+                Toast.makeText(
+                    this,
+                    "Safety level: $safetyLevel ($score reports nearby)",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
         mMap.setOnMarkerClickListener { marker ->
@@ -202,6 +220,29 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             "Harassment" -> BitmapDescriptorFactory.HUE_RED
             else -> BitmapDescriptorFactory.HUE_VIOLET
         }
+    }
+    private fun calculateSafetyScore(location: LatLng): Int {
+
+        var nearbyReports = 0
+
+        for (report in reportLocations) {
+
+            val distance = FloatArray(1)
+
+            android.location.Location.distanceBetween(
+                location.latitude,
+                location.longitude,
+                report.latitude,
+                report.longitude,
+                distance
+            )
+
+            if (distance[0] < 500) {  // 500 meters radius
+                nearbyReports++
+            }
+        }
+
+        return nearbyReports
     }
 
 }
