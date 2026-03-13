@@ -19,6 +19,8 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.maps.android.heatmaps.HeatmapTileProvider
 import com.google.android.gms.maps.model.TileOverlayOptions
 import java.util.ArrayList
+import android.graphics.Color
+import com.google.android.gms.maps.model.PolylineOptions
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
@@ -38,6 +40,20 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         reportButton.setOnClickListener {
             reportMode = true
             Toast.makeText(this, "Tap the map to report an issue", Toast.LENGTH_SHORT).show()
+        }
+        val routeButton = findViewById<Button>(R.id.routeButton)
+        val destinationInput = findViewById<EditText>(R.id.destinationInput)
+
+        routeButton.setOnClickListener {
+
+            val destination = destinationInput.text.toString()
+
+            if (destination.isEmpty()) {
+                Toast.makeText(this, "Enter a destination", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            getRoute(destination)
         }
     }
 
@@ -243,6 +259,35 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         return nearbyReports
+    }
+
+    private fun getRoute(destination: String) {
+
+        val geocoder = android.location.Geocoder(this)
+
+        val addresses = geocoder.getFromLocationName(destination, 1)
+
+        if (addresses.isNullOrEmpty()) {
+            Toast.makeText(this, "Location not found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val destLatLng = LatLng(
+            addresses[0].latitude,
+            addresses[0].longitude
+        )
+
+        mMap.addMarker(
+            MarkerOptions().position(destLatLng).title("Destination")
+        )
+
+        mMap.addPolyline(
+            PolylineOptions()
+                .add(mMap.cameraPosition.target)
+                .add(destLatLng)
+                .width(8f)
+                .color(Color.BLUE)
+        )
     }
 
 }
