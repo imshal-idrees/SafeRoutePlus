@@ -1,44 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <fragment
+    <!-- Top Search Bar -->
+
+    <LinearLayout
+        android:id="@+id/searchContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="#FFFFFF"
+        android:elevation="6dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <EditText
+            android:id="@+id/destinationInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Enter destination"
+            android:padding="8dp"
+            android:background="@android:drawable/edit_text" />
+
+        <Button
+            android:id="@+id/routeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Route"
+            android:layout_marginStart="8dp"/>
+
+    </LinearLayout>
+
+
+    <!-- Google Map -->
+
+    <androidx.fragment.app.FragmentContainerView
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/searchContainer"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:layout="@layout/activity_main"/>
 
-    <Button
+
+    <!-- Floating Report Button -->
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/reportButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Report Issue"
-        android:layout_marginBottom="100dp"
+        android:contentDescription="Report Issue"
+        android:src="@android:drawable/ic_dialog_alert"
+        android:layout_marginBottom="32dp"
+        android:elevation="10dp"
+        app:backgroundTint="@android:color/holo_red_dark"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
-
-    <EditText
-        android:id="@+id/destinationInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Enter destination" />
-
-    <Button
-        android:id="@+id/routeButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Find Safe Route"/>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 

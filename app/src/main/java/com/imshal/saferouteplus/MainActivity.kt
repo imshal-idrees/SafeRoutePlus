@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
-        val reportButton = findViewById<Button>(R.id.reportButton)
+        val reportButton = findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.reportButton)
 
         reportButton.setOnClickListener {
             reportMode = true
@@ -262,9 +262,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun getRoute(destination: String) {
-
+        mMap.clear()
+        loadReports()
         val geocoder = android.location.Geocoder(this)
-
         val addresses = geocoder.getFromLocationName(destination, 1)
 
         if (addresses.isNullOrEmpty()) {
@@ -272,22 +272,113 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             return
         }
 
-        val destLatLng = LatLng(
+        val destinationLatLng = LatLng(
             addresses[0].latitude,
             addresses[0].longitude
         )
 
-        mMap.addMarker(
-            MarkerOptions().position(destLatLng).title("Destination")
+        val origin = "${mMap.cameraPosition.target.latitude},${mMap.cameraPosition.target.longitude}"
+        val dest = "${destinationLatLng.latitude},${destinationLatLng.longitude}"
+
+        val retrofit = retrofit2.Retrofit.Builder()
+            .baseUrl("https://maps.googleapis.com/")
+            .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+            .build()
+
+        val service = retrofit.create(DirectionsService::class.java)
+
+        val call = service.getRoute(
+            origin = origin,
+            destination = dest,
+            apiKey = "AIzaSyDfzRlcnbnqk_p19g1bdnYk__VA9DCwLoA"
         )
 
-        mMap.addPolyline(
-            PolylineOptions()
-                .add(mMap.cameraPosition.target)
-                .add(destLatLng)
-                .width(8f)
-                .color(Color.BLUE)
-        )
+        call.enqueue(object : retrofit2.Callback<DirectionsResponse> {
+
+            override fun onResponse(
+                call: retrofit2.Call<DirectionsResponse>,
+                response: retrofit2.Response<DirectionsResponse>
+            ) {
+
+                if (!response.isSuccessful || response.body() == null) {
+                    Toast.makeText(this@MainActivity, "Route error", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                val routes = response.body()?.routes
+
+                if (routes.isNullOrEmpty()) {
+                    Toast.makeText(this@MainActivity, "No route found", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                val polyline = routes[0].overview_polyline.points
+
+                val decodedPath = decodePolyline(polyline)
+
+                mMap.addPolyline(
+                    PolylineOptions()
+                        .addAll(decodedPath)
+                        .width(10f)
+                        .color(android.graphics.Color.BLUE)
+                )
+
+                mMap.addMarker(
+                    MarkerOptions()
+                        .position(destinationLatLng)
+                        .title("Destination")
+                )
+            }
+
+            override fun onFailure(call: retrofit2.Call<DirectionsResponse>, t: Throwable) {
+                Toast.makeText(this@MainActivity, "Network error: ${t.message}", Toast.LENGTH_LONG).show()
+            }
+        })
+    }
+    private fun decodePolyline(encoded: String): List<LatLng> {
+
+        val poly = ArrayList<LatLng>()
+        var index = 0
+        val len = encoded.length
+        var lat = 0
+        var lng = 0
+
+        while (index < len) {
+
+            var b: Int
+            var shift = 0
+            var result = 0
+
+            do {
+                b = encoded[index++].code - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+
+            val dlat = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lat += dlat
+
+            shift = 0
+            result = 0
+
+            do {
+                b = encoded[index++].code - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+
+            val dlng = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lng += dlng
+
+            poly.add(
+                LatLng(
+                    lat.toDouble() / 1E5,
+                    lng.toDouble() / 1E5
+                )
+            )
+        }
+
+        return poly
     }
 
 }
