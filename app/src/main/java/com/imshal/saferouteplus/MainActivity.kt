@@ -23,6 +23,7 @@ import android.graphics.Color
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.maps.android.heatmaps.WeightedLatLng
 import com.google.android.gms.maps.model.TileOverlay
+import com.google.android.gms.tasks.Tasks
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
@@ -138,7 +139,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         dialog.show()
     }
     private fun loadReports() {
-
+        heatmapPoints.clear()
+        reportLocations.clear()
         db.collection("reports")
             .get()
             .addOnSuccessListener { documents ->
@@ -172,7 +174,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 mMap.addTileOverlay(TileOverlayOptions().tileProvider(provider))
             }
     }
-
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         loadReports()
@@ -235,7 +236,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             true
         }
     }
-
     private fun getMarkerColor(issueType: String): Float {
         return when (issueType) {
             "Poor Lighting" -> BitmapDescriptorFactory.HUE_YELLOW
@@ -269,6 +269,46 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         return nearbyReports
     }
 
+    private fun calculateRouteRisk(routePoints: List<LatLng>) {
+
+        db.collection("reports")
+            .get()
+            .addOnSuccessListener { documents ->
+
+                var riskScore = 0
+
+                for (doc in documents) {
+
+                    val lat = doc.getDouble("latitude") ?: continue
+                    val lng = doc.getDouble("longitude") ?: continue
+
+                    val reportLocation = LatLng(lat, lng)
+
+                    for (point in routePoints) {
+
+                        val results = FloatArray(1)
+
+                        android.location.Location.distanceBetween(
+                            point.latitude, point.longitude,
+                            reportLocation.latitude, reportLocation.longitude,
+                            results
+                        )
+
+                        val distance = results[0]
+
+                        if (distance < 50) {
+                            riskScore += 3
+                        } else if (distance < 100) {
+                            riskScore += 2
+                        } else if (distance < 200) {
+                            riskScore += 1
+                        }
+                    }
+                }
+
+                showRiskLevel(riskScore)
+            }
+    }
     private fun getRoute(destination: String) {
         mMap.clear()
         loadReports()
@@ -320,23 +360,46 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     return
                 }
 
-                val polyline = routes[0].overview_polyline.points
+                var safestRoute: List<LatLng>? = null
+                var lowestRisk = Int.MAX_VALUE
 
-                val decodedPath = decodePolyline(polyline)
-                calculateRouteRisk(decodedPath)
+                for (route in routes) {
 
-                mMap.addPolyline(
-                    PolylineOptions()
-                        .addAll(decodedPath)
-                        .width(10f)
-                        .color(android.graphics.Color.BLUE)
-                )
+                    val polyline = route.overview_polyline.points
+                    val decodedPath = decodePolyline(polyline)
 
-                mMap.addMarker(
-                    MarkerOptions()
-                        .position(destinationLatLng)
-                        .title("Destination")
-                )
+                    val risk = calculateRouteRiskValue(decodedPath)
+
+                    if (risk < lowestRisk) {
+                        lowestRisk = risk
+                        safestRoute = decodedPath
+                    }
+                }
+
+                safestRoute?.let {
+
+                    mMap.clear()
+                    loadReports()
+
+                    mMap.addPolyline(
+                        PolylineOptions()
+                            .addAll(it)
+                            .width(12f)
+                            .color(android.graphics.Color.GREEN)
+                    )
+
+                    mMap.addMarker(
+                        MarkerOptions()
+                            .position(it.last())
+                            .title("Destination")
+                    )
+
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Safest Route Selected (Score: $lowestRisk)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
 
             override fun onFailure(call: retrofit2.Call<DirectionsResponse>, t: Throwable) {
@@ -390,47 +453,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         return poly
     }
 
-    private fun calculateRouteRisk(routePoints: List<LatLng>) {
-
-        db.collection("reports")
-            .get()
-            .addOnSuccessListener { documents ->
-
-                var riskScore = 0
-
-                for (doc in documents) {
-
-                    val lat = doc.getDouble("latitude") ?: continue
-                    val lng = doc.getDouble("longitude") ?: continue
-
-                    val reportLocation = LatLng(lat, lng)
-
-                    for (point in routePoints) {
-
-                        val results = FloatArray(1)
-
-                        android.location.Location.distanceBetween(
-                            point.latitude, point.longitude,
-                            reportLocation.latitude, reportLocation.longitude,
-                            results
-                        )
-
-                        val distance = results[0]
-
-                        // Risk logic (in meters)
-                        if (distance < 50) {
-                            riskScore += 3
-                        } else if (distance < 100) {
-                            riskScore += 2
-                        } else if (distance < 200) {
-                            riskScore += 1
-                        }
-                    }
-                }
-
-                showRiskLevel(riskScore)
-            }
-    }
     private fun showRiskLevel(score: Int) {
 
         val riskLevel = when {
@@ -445,7 +467,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             Toast.LENGTH_LONG
         ).show()
     }
-
     private fun showHeatmap() {
 
         db.collection("reports")
@@ -489,5 +510,38 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     TileOverlayOptions().tileProvider(provider)
                 )
             }
+    }
+
+    private fun calculateRouteRiskValue(routePoints: List<LatLng>): Int {
+
+        var riskScore = 0
+
+        for (reportLocation in reportLocations) {
+
+            for (point in routePoints) {
+
+                val results = FloatArray(1)
+
+                android.location.Location.distanceBetween(
+                    point.latitude,
+                    point.longitude,
+                    reportLocation.latitude,
+                    reportLocation.longitude,
+                    results
+                )
+
+                val distance = results[0]
+
+                if (distance < 50) {
+                    riskScore += 3
+                } else if (distance < 100) {
+                    riskScore += 2
+                } else if (distance < 200) {
+                    riskScore += 1
+                }
+            }
+        }
+
+        return riskScore
     }
 }
