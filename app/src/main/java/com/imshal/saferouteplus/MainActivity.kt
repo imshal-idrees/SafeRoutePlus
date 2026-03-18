@@ -21,12 +21,15 @@ import com.google.android.gms.maps.model.TileOverlayOptions
 import java.util.ArrayList
 import android.graphics.Color
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.maps.android.heatmaps.WeightedLatLng
+import com.google.android.gms.maps.model.TileOverlay
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private val db = FirebaseFirestore.getInstance()
     private val heatmapPoints = ArrayList<LatLng>()
     private val reportLocations = ArrayList<LatLng>()
+    private var heatmapOverlay: TileOverlay? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +57,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             getRoute(destination)
+        }
+        val heatmapButton = findViewById<Button>(R.id.heatmapButton)
+
+        heatmapButton.setOnClickListener {
+            showHeatmap()
         }
     }
 
@@ -436,5 +444,50 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             "Route Safety: $riskLevel (Score: $score)",
             Toast.LENGTH_LONG
         ).show()
+    }
+
+    private fun showHeatmap() {
+
+        db.collection("reports")
+            .get()
+            .addOnSuccessListener { documents ->
+
+                val heatmapData = ArrayList<WeightedLatLng>()
+
+                for (doc in documents) {
+
+                    val lat = doc.getDouble("latitude") ?: continue
+                    val lng = doc.getDouble("longitude") ?: continue
+
+                    val issue = doc.getString("issueType") ?: "Other"
+
+                    val weight = when (issue) {
+                        "Harassment" -> 4.0
+                        "Suspicious Activity" -> 3.0
+                        "Poor Lighting" -> 2.0
+                        else -> 1.0
+                    }
+
+                    heatmapData.add(
+                        WeightedLatLng(LatLng(lat, lng), weight)
+                    )
+                }
+
+                if (heatmapData.isEmpty()) {
+                    Toast.makeText(this, "No data for heatmap", Toast.LENGTH_SHORT).show()
+                    return@addOnSuccessListener
+                }
+
+                val provider = HeatmapTileProvider.Builder()
+                    .weightedData(heatmapData)
+                    .radius(50)
+                    .build()
+
+                heatmapOverlay?.remove()
+
+                heatmapOverlay = mMap.addTileOverlay(
+                    TileOverlayOptions().tileProvider(provider)
+                )
+            }
     }
 }
