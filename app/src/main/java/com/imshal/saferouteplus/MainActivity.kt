@@ -315,6 +315,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 val polyline = routes[0].overview_polyline.points
 
                 val decodedPath = decodePolyline(polyline)
+                calculateRouteRisk(decodedPath)
 
                 mMap.addPolyline(
                     PolylineOptions()
@@ -381,4 +382,59 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         return poly
     }
 
+    private fun calculateRouteRisk(routePoints: List<LatLng>) {
+
+        db.collection("reports")
+            .get()
+            .addOnSuccessListener { documents ->
+
+                var riskScore = 0
+
+                for (doc in documents) {
+
+                    val lat = doc.getDouble("latitude") ?: continue
+                    val lng = doc.getDouble("longitude") ?: continue
+
+                    val reportLocation = LatLng(lat, lng)
+
+                    for (point in routePoints) {
+
+                        val results = FloatArray(1)
+
+                        android.location.Location.distanceBetween(
+                            point.latitude, point.longitude,
+                            reportLocation.latitude, reportLocation.longitude,
+                            results
+                        )
+
+                        val distance = results[0]
+
+                        // Risk logic (in meters)
+                        if (distance < 50) {
+                            riskScore += 3
+                        } else if (distance < 100) {
+                            riskScore += 2
+                        } else if (distance < 200) {
+                            riskScore += 1
+                        }
+                    }
+                }
+
+                showRiskLevel(riskScore)
+            }
+    }
+    private fun showRiskLevel(score: Int) {
+
+        val riskLevel = when {
+            score < 10 -> "Low"
+            score < 25 -> "Moderate"
+            else -> "High"
+        }
+
+        Toast.makeText(
+            this,
+            "Route Safety: $riskLevel (Score: $score)",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 }
