@@ -31,6 +31,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val heatmapPoints = ArrayList<LatLng>()
     private val reportLocations = ArrayList<LatLng>()
     private var heatmapOverlay: TileOverlay? = null
+    private var safestPolyline: com.google.android.gms.maps.model.Polyline? = null
+    private var fastestPolyline: com.google.android.gms.maps.model.Polyline? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -235,6 +237,29 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
             true
         }
+        mMap.setOnPolylineClickListener { polyline ->
+
+            if (polyline == safestPolyline) {
+
+                safestPolyline?.color = Color.GREEN
+                safestPolyline?.width = 18f
+
+                fastestPolyline?.color = Color.BLUE
+                fastestPolyline?.width = 8f
+
+                Toast.makeText(this, "Safest route selected", Toast.LENGTH_SHORT).show()
+
+            } else if (polyline == fastestPolyline) {
+
+                fastestPolyline?.color = Color.BLUE
+                fastestPolyline?.width = 18f
+
+                safestPolyline?.color = Color.GREEN
+                safestPolyline?.width = 8f
+
+                Toast.makeText(this, "Fastest route selected", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     private fun getMarkerColor(issueType: String): Float {
         return when (issueType) {
@@ -312,11 +337,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun getRoute(destination: String) {
         mMap.clear()
         loadReports()
-        val geocoder = android.location.Geocoder(this)
-        val addresses = geocoder.getFromLocationName(destination, 1)
+        val geocoder = android.location.Geocoder(this, java.util.Locale.getDefault())
+        val addresses = try {
+            geocoder.getFromLocationName(destination, 1)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
 
         if (addresses.isNullOrEmpty()) {
-            Toast.makeText(this, "Location not found", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Location not found: $destination", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -360,15 +390,21 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     return
                 }
 
+                var fastestRoute: List<LatLng>? = null
                 var safestRoute: List<LatLng>? = null
+
                 var lowestRisk = Int.MAX_VALUE
+                var fastestRisk = 0
 
-                for (route in routes) {
+                routes.forEachIndexed { index, route ->
 
-                    val polyline = route.overview_polyline.points
-                    val decodedPath = decodePolyline(polyline)
-
+                    val decodedPath = decodePolyline(route.overview_polyline.points)
                     val risk = calculateRouteRiskValue(decodedPath)
+
+                    if (index == 0) {
+                        fastestRoute = decodedPath
+                        fastestRisk = risk
+                    }
 
                     if (risk < lowestRisk) {
                         lowestRisk = risk
@@ -376,30 +412,49 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
 
-                safestRoute?.let {
+                mMap.clear()
+                val start = mMap.cameraPosition.target
 
-                    mMap.clear()
-                    loadReports()
+                mMap.addMarker(
+                    MarkerOptions()
+                        .position(start)
+                        .title("Start Location")
+                )
+                loadReports()
 
+                fastestPolyline = fastestRoute?.let {
                     mMap.addPolyline(
                         PolylineOptions()
                             .addAll(it)
-                            .width(12f)
-                            .color(android.graphics.Color.GREEN)
+                            .width(10f)
+                            .color(Color.BLUE)
+                            .clickable(true)
                     )
+                }
 
+                safestPolyline = safestRoute?.let {
+                    mMap.addPolyline(
+                        PolylineOptions()
+                            .addAll(it)
+                            .width(14f)
+                            .color(Color.GREEN)
+                            .clickable(true)
+                    )
+                }
+
+                safestRoute?.lastOrNull()?.let {
                     mMap.addMarker(
                         MarkerOptions()
-                            .position(it.last())
+                            .position(it)
                             .title("Destination")
                     )
-
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Safest Route Selected (Score: $lowestRisk)",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
+
+                Toast.makeText(
+                    this@MainActivity,
+                    "Safest: $lowestRisk | Fastest: $fastestRisk",
+                    Toast.LENGTH_LONG
+                ).show()
             }
 
             override fun onFailure(call: retrofit2.Call<DirectionsResponse>, t: Throwable) {
