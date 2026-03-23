@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private var heatmapOverlay: TileOverlay? = null
     private var safestPolyline: com.google.android.gms.maps.model.Polyline? = null
     private var fastestPolyline: com.google.android.gms.maps.model.Polyline? = null
+    private val selectedFilters = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +66,37 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         heatmapButton.setOnClickListener {
             showHeatmap()
+        }
+        val filterButton = findViewById<Button>(R.id.filterButton)
+
+        val filterOptions = arrayOf(
+            "Poor Lighting",
+            "Suspicious Activity",
+            "Unsafe Path",
+            "Harassment",
+            "Other"
+        )
+
+        val checkedItems = BooleanArray(filterOptions.size)
+
+        filterButton.setOnClickListener {
+
+            AlertDialog.Builder(this)
+                .setTitle("Select Filters")
+                .setMultiChoiceItems(filterOptions, checkedItems) { _, which, isChecked ->
+
+                    if (isChecked) {
+                        selectedFilters.add(filterOptions[which])
+                    } else {
+                        selectedFilters.remove(filterOptions[which])
+                    }
+                }
+                .setPositiveButton("Apply") { _, _ ->
+                    mMap.clear()
+                    loadReports()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
     }
 
@@ -151,7 +183,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     val lat = doc.getDouble("latitude") ?: continue
                     val lng = doc.getDouble("longitude") ?: continue
-                    val issue = doc.getString("issueType")
+                    val issue = doc.getString("issueType") ?: "Other"
+
+                    if (selectedFilters.isNotEmpty() && !selectedFilters.contains(issue)) {
+                        continue
+                    }
                     val description = doc.getString("description")
 
                     val position = LatLng(lat, lng)
@@ -168,12 +204,17 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     marker?.tag = doc.id
                 }
-                val provider = HeatmapTileProvider.Builder()
-                    .data(heatmapPoints)
-                    .radius(50)
-                    .build()
+                if (heatmapPoints.isNotEmpty()) {
+                    val provider = HeatmapTileProvider.Builder()
+                        .data(heatmapPoints)
+                        .radius(50)
+                        .build()
 
-                mMap.addTileOverlay(TileOverlayOptions().tileProvider(provider))
+                    mMap.addTileOverlay(TileOverlayOptions().tileProvider(provider))
+                }
+                if (heatmapPoints.isEmpty()) {
+                    Toast.makeText(this, "No reports for selected filter", Toast.LENGTH_SHORT).show()
+                }
             }
     }
     override fun onMapReady(googleMap: GoogleMap) {
@@ -266,7 +307,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             "Poor Lighting" -> BitmapDescriptorFactory.HUE_YELLOW
             "Suspicious Activity" -> BitmapDescriptorFactory.HUE_ORANGE
             "Unsafe Path" -> BitmapDescriptorFactory.HUE_BLUE
-            "Harassment" -> BitmapDescriptorFactory.HUE_RED
+            "Harassment" -> BitmapDescriptorFactory.HUE_MAGENTA
             else -> BitmapDescriptorFactory.HUE_VIOLET
         }
     }
