@@ -34,10 +34,62 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private var safestPolyline: com.google.android.gms.maps.model.Polyline? = null
     private var fastestPolyline: com.google.android.gms.maps.model.Polyline? = null
     private val selectedFilters = mutableSetOf<String>()
+    private var deleteMode = false
+    private var heatmapVisible = true
+    var useCurrentLocation = false
+    private lateinit var startInput: EditText
+    private var selectedRoute: List<LatLng>? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        startInput = findViewById(R.id.startInput)
+        val currentLocationButton = findViewById<Button>(R.id.currentLocationButton)
+
+        currentLocationButton.setOnClickListener {
+            useCurrentLocation = true
+            Toast.makeText(this, "Using current location", Toast.LENGTH_SHORT).show()
+        }
+
+        val destinationInput = findViewById<EditText>(R.id.destinationInput)
+
+        val startNavButton = findViewById<Button>(R.id.startNavigationButton)
+
+        startNavButton.setOnClickListener {
+
+            val route = selectedRoute
+
+            if (route == null || route.isEmpty()) {
+                Toast.makeText(this, "Please select a route first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val origin = route.first()
+            val destination = route.last()
+
+            // pick a few waypoints bc Google limit is 23
+            val waypointList = route
+                .filterIndexed { index, _ -> index % 10 == 0 } // reduce points
+                .map { "${it.latitude},${it.longitude}" }
+
+            val waypoints = waypointList.joinToString("|")
+
+            val uri = android.net.Uri.parse(
+                "https://www.google.com/maps/dir/?api=1" +
+                        "&origin=${origin.latitude},${origin.longitude}" +
+                        "&destination=${destination.latitude},${destination.longitude}" +
+                        "&travelmode=walking" +
+                        "&waypoints=$waypoints"
+            )
+
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+            intent.setPackage("com.google.android.apps.maps")
+
+            startActivity(intent)
+        }
 
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
@@ -49,8 +101,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             Toast.makeText(this, "Tap the map to report an issue", Toast.LENGTH_SHORT).show()
         }
         val routeButton = findViewById<Button>(R.id.routeButton)
-        val destinationInput = findViewById<EditText>(R.id.destinationInput)
-
         routeButton.setOnClickListener {
 
             val destination = destinationInput.text.toString()
@@ -65,7 +115,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         val heatmapButton = findViewById<Button>(R.id.heatmapButton)
 
         heatmapButton.setOnClickListener {
-            showHeatmap()
+
+            if (heatmapVisible) {
+                heatmapOverlay?.remove()
+                heatmapVisible = false
+                Toast.makeText(this, "Heatmap OFF", Toast.LENGTH_SHORT).show()
+            } else {
+                showHeatmap()
+                heatmapVisible = true
+                Toast.makeText(this, "Heatmap ON", Toast.LENGTH_SHORT).show()
+            }
         }
         val filterButton = findViewById<Button>(R.id.filterButton)
 
@@ -98,6 +157,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+        val deleteButton = findViewById<Button>(R.id.deleteButton)
+
+        deleteButton.setOnClickListener {
+            deleteMode = true
+            Toast.makeText(this, "Tap a marker to delete", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showReportDialog(latLng: LatLng) {
@@ -123,6 +188,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
+            .setNegativeButton("Cancel") { dialogInterface, _ ->
+                dialogInterface.dismiss()
+            }
             .create()
 
         submitButton.setOnClickListener {
@@ -130,8 +198,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             val issueType = spinner.selectedItem.toString()
             val descriptionText = description.text.toString()
 
-            if (descriptionText.isEmpty()) {
-                Toast.makeText(this, "Please add a description", Toast.LENGTH_SHORT).show()
+            if (issueType == "Other" && descriptionText.isEmpty()) {
+                Toast.makeText(this, "Please describe the issue", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -184,6 +252,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     val lat = doc.getDouble("latitude") ?: continue
                     val lng = doc.getDouble("longitude") ?: continue
                     val issue = doc.getString("issueType") ?: "Other"
+                    val timestamp = doc.getLong("timestamp") ?: 0
+
+                    val date = java.text.SimpleDateFormat("dd MMM yyyy")
+                        .format(java.util.Date(timestamp))
 
                     if (selectedFilters.isNotEmpty() && !selectedFilters.contains(issue)) {
                         continue
@@ -198,7 +270,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         MarkerOptions()
                             .position(position)
                             .title(issue)
-                            .snippet(description)
+                            .snippet("$description\n$date")
                             .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issue ?: "Other")))
                     )
 
@@ -229,12 +301,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap.uiSettings.isCompassEnabled = true
         mMap.uiSettings.isMapToolbarEnabled = true
         mMap.setOnMapClickListener { latLng ->
+            if (deleteMode) {
+                deleteMode = false
+                Toast.makeText(this, "Delete mode cancelled", Toast.LENGTH_SHORT).show()
+                return@setOnMapClickListener
+            }
 
             if (reportMode) {
-
                 showReportDialog(latLng)
                 reportMode = false
-
             } else {
 
                 val score = calculateSafetyScore(latLng)
@@ -255,26 +330,37 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         mMap.setOnMarkerClickListener { marker ->
 
-            AlertDialog.Builder(this)
-                .setTitle("Delete Report")
-                .setMessage("Do you want to delete this report?")
-                .setPositiveButton("Delete") { _, _ ->
+            // iff reporting then ignore marker click so user can place a new one
+            if (reportMode) {
+                return@setOnMarkerClickListener true
+            }
 
-                    val docId = marker.tag as? String
+            // delete mode
+            if (deleteMode) {
 
-                    if (docId != null) {
+                val docId = marker.tag as? String
 
-                        db.collection("reports")
-                            .document(docId)
-                            .delete()
+                if (docId != null) {
 
-                        marker.remove()
+                    AlertDialog.Builder(this)
+                        .setTitle("Delete Report")
+                        .setMessage("Are you sure you want to delete this report?")
+                        .setPositiveButton("Yes") { _, _ ->
 
-                        Toast.makeText(this, "Report deleted", Toast.LENGTH_SHORT).show()
-                    }
+                            db.collection("reports").document(docId).delete()
+                            marker.remove()
+
+                            Toast.makeText(this, "Report deleted", Toast.LENGTH_SHORT).show()
+                        }
+                        .setNegativeButton("No", null)
+                        .show()
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
+
+                return@setOnMarkerClickListener true
+            }
+
+            // normal mode to show the info window at the top of the marker
+            marker.showInfoWindow()
 
             true
         }
@@ -288,6 +374,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 fastestPolyline?.color = Color.BLUE
                 fastestPolyline?.width = 8f
 
+                selectedRoute = safestPolyline?.points
+
                 Toast.makeText(this, "Safest route selected", Toast.LENGTH_SHORT).show()
 
             } else if (polyline == fastestPolyline) {
@@ -298,9 +386,30 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 safestPolyline?.color = Color.GREEN
                 safestPolyline?.width = 8f
 
+                selectedRoute = fastestPolyline?.points
+
                 Toast.makeText(this, "Fastest route selected", Toast.LENGTH_SHORT).show()
             }
         }
+        mMap.setInfoWindowAdapter(object : GoogleMap.InfoWindowAdapter {
+
+            override fun getInfoWindow(marker: com.google.android.gms.maps.model.Marker): android.view.View? {
+                return null
+            }
+
+            override fun getInfoContents(marker: com.google.android.gms.maps.model.Marker): android.view.View {
+
+                val view = layoutInflater.inflate(R.layout.custom_info_window, null)
+
+                val title = view.findViewById<android.widget.TextView>(R.id.title)
+                val snippet = view.findViewById<android.widget.TextView>(R.id.snippet)
+
+                title.text = marker.title
+                snippet.text = marker.snippet
+
+                return view
+            }
+        })
     }
     private fun getMarkerColor(issueType: String): Float {
         return when (issueType) {
@@ -396,7 +505,36 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             addresses[0].longitude
         )
 
-        val origin = "${mMap.cameraPosition.target.latitude},${mMap.cameraPosition.target.longitude}"
+        val origin = when {
+            useCurrentLocation -> {
+                val loc = mMap.cameraPosition.target
+                "${loc.latitude},${loc.longitude}"
+            }
+            startInput.text.isNotEmpty() -> {
+                val startAddresses = try {
+                    android.location.Geocoder(this)
+                        .getFromLocationName(startInput.text.toString(), 1)
+                } catch (e: Exception) {
+                    null
+                }
+
+                if (startAddresses.isNullOrEmpty()) {
+                    Toast.makeText(this, "Start location not found", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                if (!startAddresses.isNullOrEmpty()) {
+                    "${startAddresses[0].latitude},${startAddresses[0].longitude}"
+                } else {
+                    Toast.makeText(this, "Start location not found", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
+            else -> {
+                val loc = mMap.cameraPosition.target
+                "${loc.latitude},${loc.longitude}"
+            }
+        }
         val dest = "${destinationLatLng.latitude},${destinationLatLng.longitude}"
 
         val retrofit = retrofit2.Retrofit.Builder()
@@ -640,4 +778,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         return riskScore
     }
+
+
 }

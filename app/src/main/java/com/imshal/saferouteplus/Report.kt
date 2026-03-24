@@ -5,5 +5,5 @@ data class Report(
     val longitude: Double = 0.0,
     val issueType: String = "",
     val description: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 )

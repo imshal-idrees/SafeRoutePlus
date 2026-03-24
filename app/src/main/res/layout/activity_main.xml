@@ -14,7 +14,7 @@
         android:id="@+id/searchContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="8dp"
         android:background="#FFFFFF"
         android:elevation="6dp"
@@ -22,25 +22,51 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <!-- Start location -->
+        <EditText
+            android:id="@+id/startInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Enter start location (optional)" />
+
+        <!-- Destination -->
         <EditText
             android:id="@+id/destinationInput"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="Enter destination"
-            android:padding="8dp"
-            android:background="@android:drawable/edit_text" />
+            android:hint="Enter destination" />
 
-        <Button
-            android:id="@+id/routeButton"
-            android:layout_width="wrap_content"
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Route"
-            android:layout_marginStart="8dp"/>
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/currentLocationButton"
+                android:text="Use My Location"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"/>
+
+            <Button
+                android:id="@+id/routeButton"
+                android:text="Route"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"/>
+
+            <Button
+                android:id="@+id/startNavigationButton"
+                android:text="Start"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
 
     </LinearLayout>
 
-    <!-- Filter Dropdown -->
+    <!-- Filter Button -->
     <Button
         android:id="@+id/filterButton"
         android:layout_width="wrap_content"
@@ -85,6 +111,15 @@
         android:layout_height="wrap_content"
         android:text="Heatmap"
         app:layout_constraintBottom_toTopOf="@id/reportButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_margin="16dp"/>
+
+    <Button
+        android:id="@+id/deleteButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Delete Mode"
+        app:layout_constraintBottom_toTopOf="@id/heatmapButton"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_margin="16dp"/>
 
