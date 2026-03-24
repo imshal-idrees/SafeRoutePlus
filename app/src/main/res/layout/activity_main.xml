@@ -8,120 +8,130 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- Top Search Bar -->
-
+    <!-- TOP CARD (Search UI) -->
     <LinearLayout
         android:id="@+id/searchContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="8dp"
+        android:padding="12dp"
         android:background="#FFFFFF"
-        android:elevation="6dp"
+        android:elevation="8dp"
+        android:layout_margin="8dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Start location -->
-        <EditText
-            android:id="@+id/startInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Enter start location (optional)" />
-
-        <!-- Destination -->
-        <EditText
-            android:id="@+id/destinationInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Enter destination" />
-
-        <!-- Buttons -->
+        <!-- START ROW -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
+            <EditText
+                android:id="@+id/startInput"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="Start location"
+                android:padding="10dp"/>
+
             <Button
                 android:id="@+id/currentLocationButton"
-                android:text="Use My Location"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"/>
+                android:text="📍"
+                android:layout_marginStart="6dp"/>
+        </LinearLayout>
+
+        <!-- DESTINATION ROW -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <EditText
+                android:id="@+id/destinationInput"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="Destination"
+                android:padding="10dp"/>
 
             <Button
                 android:id="@+id/routeButton"
-                android:text="Route"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"/>
-
-            <Button
-                android:id="@+id/startNavigationButton"
-                android:text="Start"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"/>
+                android:text="Go"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
+
+        <!-- START NAV BUTTON -->
+        <Button
+            android:id="@+id/startNavigationButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Navigation"
+            android:layout_marginTop="10dp"/>
 
     </LinearLayout>
 
-    <!-- Filter Button -->
-    <Button
-        android:id="@+id/filterButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Filter"
-        app:layout_constraintTop_toBottomOf="@id/searchContainer"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_margin="8dp"/>
-
-    <!-- Google Map -->
-
+    <!-- MAP -->
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/filterButton"
+        app:layout_constraintTop_toBottomOf="@id/searchContainer"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         tools:layout="@layout/activity_main"/>
 
+    <!-- RIGHT SIDE FLOATING TOOLBAR -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_margin="12dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/searchContainer">
 
-    <!-- Floating Report Button -->
+        <Button
+            android:id="@+id/filterButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Filter"
+            android:layout_marginBottom="8dp"/>
 
+        <Button
+            android:id="@+id/heatmapButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Heatmap"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/deleteButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Delete"/>
+    </LinearLayout>
+
+    <!-- REPORT BUTTON (CENTRE BOTTOM) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/reportButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:contentDescription="Report Issue"
         android:src="@android:drawable/ic_dialog_alert"
-        android:layout_marginBottom="32dp"
-        android:elevation="10dp"
+        android:contentDescription="Report Issue"
         app:backgroundTint="@android:color/holo_red_dark"
+        android:elevation="12dp"
+        android:layout_marginBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
-
-    <Button
-        android:id="@+id/heatmapButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Heatmap"
-        app:layout_constraintBottom_toTopOf="@id/reportButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_margin="16dp"/>
-
-    <Button
-        android:id="@+id/deleteButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Delete Mode"
-        app:layout_constraintBottom_toTopOf="@id/heatmapButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_margin="16dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 
