@@ -20,10 +20,12 @@ import com.google.maps.android.heatmaps.HeatmapTileProvider
 import com.google.android.gms.maps.model.TileOverlayOptions
 import java.util.ArrayList
 import android.graphics.Color
+import android.location.Geocoder
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.maps.android.heatmaps.WeightedLatLng
 import com.google.android.gms.maps.model.TileOverlay
-import com.google.android.gms.tasks.Tasks
+import java.util.Locale
+
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
@@ -36,7 +38,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val selectedFilters = mutableSetOf<String>()
     private var deleteMode = false
     private var heatmapVisible = true
-    var useCurrentLocation = false
     private lateinit var startInput: EditText
     private var selectedRoute: List<LatLng>? = null
 
@@ -47,13 +48,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_main)
 
         startInput = findViewById(R.id.startInput)
-        val currentLocationButton = findViewById<Button>(R.id.currentLocationButton)
+        val resetStartButton = findViewById<Button>(R.id.resetStartButton)
 
-        currentLocationButton.setOnClickListener {
-            useCurrentLocation = true
-            Toast.makeText(this, "Using current location", Toast.LENGTH_SHORT).show()
+        resetStartButton.setOnClickListener {
+            startInput.setText("")
+            Toast.makeText(this, "Using default start (London)", Toast.LENGTH_SHORT).show()
+
         }
-
         val destinationInput = findViewById<EditText>(R.id.destinationInput)
 
         val startNavButton = findViewById<Button>(R.id.startNavigationButton)
@@ -163,6 +164,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             deleteMode = true
             Toast.makeText(this, "Tap a marker to delete", Toast.LENGTH_SHORT).show()
         }
+        val dashboardButton = findViewById<Button>(R.id.dashboardButton)
+
+        dashboardButton.setOnClickListener {
+            startActivity(android.content.Intent(this, DashboardActivity::class.java))
+        }
+
     }
 
     private fun showReportDialog(latLng: LatLng) {
@@ -203,11 +210,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 return@setOnClickListener
             }
 
-            val report = Report(
-                latitude = latLng.latitude,
-                longitude = latLng.longitude,
-                issueType = issueType,
-                description = descriptionText
+            val (riskLevel, riskScore) = classifyRisk(descriptionText, issueType)
+
+            val report = hashMapOf(
+                "latitude" to latLng.latitude,
+                "longitude" to latLng.longitude,
+                "issueType" to issueType,
+                "description" to descriptionText,
+                "riskLevel" to riskLevel,
+                "riskScore" to riskScore,
+                "timestamp" to System.currentTimeMillis()
             )
 
             db.collection("reports")
@@ -261,6 +273,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         continue
                     }
                     val description = doc.getString("description")
+                    val riskLevel = doc.getString("riskLevel") ?: "LOW"
 
                     val position = LatLng(lat, lng)
                     heatmapPoints.add(position)
@@ -270,7 +283,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         MarkerOptions()
                             .position(position)
                             .title(issue)
-                            .snippet("$description\n$date")
+                            .snippet("Risk: $riskLevel\n$description\n$date")
                             .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issue ?: "Other")))
                     )
 
@@ -484,57 +497,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 showRiskLevel(riskScore)
             }
     }
-    private fun getRoute(destination: String) {
-        mMap.clear()
-        loadReports()
-        val geocoder = android.location.Geocoder(this, java.util.Locale.getDefault())
-        val addresses = try {
-            geocoder.getFromLocationName(destination, 1)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+    private fun callDirections(originLatLng: LatLng, destinationLatLng: LatLng) {
 
-        if (addresses.isNullOrEmpty()) {
-            Toast.makeText(this, "Location not found: $destination", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val destinationLatLng = LatLng(
-            addresses[0].latitude,
-            addresses[0].longitude
-        )
-
-        val origin = when {
-            useCurrentLocation -> {
-                val loc = mMap.cameraPosition.target
-                "${loc.latitude},${loc.longitude}"
-            }
-            startInput.text.isNotEmpty() -> {
-                val startAddresses = try {
-                    android.location.Geocoder(this)
-                        .getFromLocationName(startInput.text.toString(), 1)
-                } catch (e: Exception) {
-                    null
-                }
-
-                if (startAddresses.isNullOrEmpty()) {
-                    Toast.makeText(this, "Start location not found", Toast.LENGTH_SHORT).show()
-                    return
-                }
-
-                if (!startAddresses.isNullOrEmpty()) {
-                    "${startAddresses[0].latitude},${startAddresses[0].longitude}"
-                } else {
-                    Toast.makeText(this, "Start location not found", Toast.LENGTH_SHORT).show()
-                    return
-                }
-            }
-            else -> {
-                val loc = mMap.cameraPosition.target
-                "${loc.latitude},${loc.longitude}"
-            }
-        }
+        val origin = "${originLatLng.latitude},${originLatLng.longitude}"
         val dest = "${destinationLatLng.latitude},${destinationLatLng.longitude}"
 
         val retrofit = retrofit2.Retrofit.Builder()
@@ -544,103 +509,197 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val service = retrofit.create(DirectionsService::class.java)
 
-        val call = service.getRoute(
-            origin = origin,
-            destination = dest,
-            apiKey = "AIzaSyDfzRlcnbnqk_p19g1bdnYk__VA9DCwLoA"
+        // create 2 artificial waypoints (left & right)
+        val midLat = (originLatLng.latitude + destinationLatLng.latitude) / 2
+        val midLng = (originLatLng.longitude + destinationLatLng.longitude) / 2
+
+        val offset = 0.01 // adjust for more separation
+
+        val waypoint1 = "$midLat,${midLng + offset}"
+        val waypoint2 = "$midLat,${midLng - offset}"
+
+        val waypointsList = listOf(
+            null, // fastest (no waypoint)
+            waypoint1, // route A
+            waypoint2  // route B
         )
 
-        call.enqueue(object : retrofit2.Callback<DirectionsResponse> {
+        val allRoutes = mutableListOf<List<LatLng>>()
 
-            override fun onResponse(
-                call: retrofit2.Call<DirectionsResponse>,
-                response: retrofit2.Response<DirectionsResponse>
-            ) {
+        var completedCalls = 0
 
-                if (!response.isSuccessful || response.body() == null) {
-                    Toast.makeText(this@MainActivity, "Route error", Toast.LENGTH_SHORT).show()
-                    return
-                }
+        waypointsList.forEach { waypoint ->
 
-                val routes = response.body()?.routes
+            val call = service.getRoute(
+                origin = origin,
+                destination = dest,
+                waypoints = waypoint,
+                apiKey = "AIzaSyCZs0CcyHqeA31qqzJnVk5Mq6DoLaMONxM"
+            )
 
-                if (routes.isNullOrEmpty()) {
-                    Toast.makeText(this@MainActivity, "No route found", Toast.LENGTH_SHORT).show()
-                    return
-                }
+            call.enqueue(object : retrofit2.Callback<DirectionsResponse> {
 
-                var fastestRoute: List<LatLng>? = null
-                var safestRoute: List<LatLng>? = null
+                override fun onResponse(
+                    call: retrofit2.Call<DirectionsResponse>,
+                    response: retrofit2.Response<DirectionsResponse>
+                ) {
 
-                var lowestRisk = Int.MAX_VALUE
-                var fastestRisk = 0
+                    completedCalls++
 
-                routes.forEachIndexed { index, route ->
+                    if (response.isSuccessful && response.body() != null) {
 
-                    val decodedPath = decodePolyline(route.overview_polyline.points)
-                    val risk = calculateRouteRiskValue(decodedPath)
+                        val routes = response.body()!!.routes
 
-                    if (index == 0) {
-                        fastestRoute = decodedPath
-                        fastestRisk = risk
+                        routes.forEach { route ->
+                            val decoded = decodePolyline(route.overview_polyline.points)
+                            allRoutes.add(decoded)
+                        }
                     }
 
-                    if (risk < lowestRisk) {
-                        lowestRisk = risk
-                        safestRoute = decodedPath
+                    // when all 3 calls are done
+                    if (completedCalls == waypointsList.size) {
+
+                        if (allRoutes.isEmpty()) {
+                            Toast.makeText(this@MainActivity, "No routes found", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+
+                        var fastestRoute: List<LatLng>? = null
+                        var safestRoute: List<LatLng>? = null
+
+                        var lowestRisk = Int.MAX_VALUE
+                        var fastestRisk = 0
+
+                        allRoutes.forEachIndexed { index, route ->
+
+                            val risk = calculateRouteRiskValue(route)
+
+                            if (index == 0) {
+                                fastestRoute = route
+                                fastestRisk = risk
+                            }
+
+                            if (risk < lowestRisk) {
+                                lowestRisk = risk
+                                safestRoute = route
+                            }
+                        }
+
+                        // draw the routes
+                        mMap.clear()
+
+                        mMap.addMarker(
+                            MarkerOptions()
+                                .position(originLatLng)
+                                .title("Start")
+                        )
+
+                        mMap.addMarker(
+                            MarkerOptions()
+                                .position(destinationLatLng)
+                                .title("Destination")
+                        )
+
+                        loadReports()
+
+                        fastestPolyline = fastestRoute?.let {
+                            mMap.addPolyline(
+                                PolylineOptions()
+                                    .addAll(it)
+                                    .width(10f)
+                                    .color(Color.BLUE)
+                                    .clickable(true)
+                            )
+                        }
+
+                        safestPolyline = safestRoute?.let {
+                            mMap.addPolyline(
+                                PolylineOptions()
+                                    .addAll(it)
+                                    .width(14f)
+                                    .color(Color.GREEN)
+                                    .clickable(true)
+                            )
+                        }
+
+                        safestRoute?.lastOrNull()?.let {
+                            mMap.addMarker(
+                                MarkerOptions()
+                                    .position(it)
+                                    .title("Destination")
+                            )
+                        }
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Safest: $lowestRisk | Fastest: $fastestRisk",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
 
-                mMap.clear()
-                val start = mMap.cameraPosition.target
-
-                mMap.addMarker(
-                    MarkerOptions()
-                        .position(start)
-                        .title("Start Location")
-                )
-                loadReports()
-
-                fastestPolyline = fastestRoute?.let {
-                    mMap.addPolyline(
-                        PolylineOptions()
-                            .addAll(it)
-                            .width(10f)
-                            .color(Color.BLUE)
-                            .clickable(true)
-                    )
+                override fun onFailure(call: retrofit2.Call<DirectionsResponse>, t: Throwable) {
+                    completedCalls++
                 }
-
-                safestPolyline = safestRoute?.let {
-                    mMap.addPolyline(
-                        PolylineOptions()
-                            .addAll(it)
-                            .width(14f)
-                            .color(Color.GREEN)
-                            .clickable(true)
-                    )
-                }
-
-                safestRoute?.lastOrNull()?.let {
-                    mMap.addMarker(
-                        MarkerOptions()
-                            .position(it)
-                            .title("Destination")
-                    )
-                }
-
-                Toast.makeText(
-                    this@MainActivity,
-                    "Safest: $lowestRisk | Fastest: $fastestRisk",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-
-            override fun onFailure(call: retrofit2.Call<DirectionsResponse>, t: Throwable) {
-                Toast.makeText(this@MainActivity, "Network error: ${t.message}", Toast.LENGTH_LONG).show()
-            }
-        })
+            })
+        }
     }
+
+    private fun getRoute(destination: String) {
+
+        mMap.clear()
+        loadReports()
+
+        val geocoder = Geocoder(this, Locale.getDefault())
+
+        val destinationAddresses = try {
+            geocoder.getFromLocationName(destination, 1)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+
+        if (destinationAddresses.isNullOrEmpty()) {
+            Toast.makeText(this, "Location not found: $destination", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val destinationLatLng = LatLng(
+            destinationAddresses[0].latitude,
+            destinationAddresses[0].longitude
+        )
+
+        val originText = startInput.text.toString()
+
+        // if user entered a custom start
+        if (originText.isNotEmpty()) {
+
+            val originAddresses = try {
+                geocoder.getFromLocationName(originText, 1)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+
+            if (originAddresses.isNullOrEmpty()) {
+                Toast.makeText(this, "Start location not found", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val originLatLng = LatLng(
+                originAddresses[0].latitude,
+                originAddresses[0].longitude
+            )
+
+            callDirections(originLatLng, destinationLatLng)
+
+        } else {
+            // default to London
+            val london = LatLng(51.5074, -0.1278)
+            callDirections(london, destinationLatLng)
+        }
+    }
+
     private fun decodePolyline(encoded: String): List<LatLng> {
 
         val poly = ArrayList<LatLng>()
@@ -766,18 +825,47 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                 val distance = results[0]
 
-                if (distance < 50) {
-                    riskScore += 3
-                } else if (distance < 100) {
-                    riskScore += 2
-                } else if (distance < 200) {
-                    riskScore += 1
+                val weight = when {
+                    distance < 50 -> 3
+                    distance < 100 -> 2
+                    distance < 200 -> 1
+                    else -> 0
                 }
+
+                riskScore += weight
             }
         }
 
         return riskScore
     }
 
+    private fun classifyRisk(description: String, issueType: String): Pair<String, Int> {
+
+        val text = description.lowercase()
+
+        return when {
+
+            // high risk
+            text.contains("attack") ||
+                    text.contains("knife") ||
+                    text.contains("followed") ||
+                    text.contains("assault") ||
+                    issueType == "Harassment" -> {
+                Pair("HIGH", 3)
+            }
+
+            // medium risk
+            text.contains("dark") ||
+                    text.contains("no light") ||
+                    text.contains("suspicious") -> {
+                Pair("MEDIUM", 2)
+            }
+
+            // low risk
+            else -> {
+                Pair("LOW", 1)
+            }
+        }
+    }
 
 }

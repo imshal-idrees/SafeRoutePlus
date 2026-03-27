@@ -37,11 +37,11 @@
                 android:padding="10dp"/>
 
             <Button
-                android:id="@+id/currentLocationButton"
+                android:id="@+id/resetStartButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="📍"
-                android:layout_marginStart="6dp"/>
+                android:text="Default 📍"/>
+
         </LinearLayout>
 
         <!-- DESTINATION ROW -->
@@ -117,6 +117,14 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Delete"/>
+        <Button
+            android:id="@+id/dashboardButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Analytics"
+            app:layout_constraintBottom_toTopOf="@id/deleteButton"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_margin="16dp"/>
     </LinearLayout>
 
     <!-- REPORT BUTTON (CENTRE BOTTOM) -->
