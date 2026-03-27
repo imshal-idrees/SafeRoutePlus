@@ -8,8 +8,10 @@ import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.charts.BarChart
 import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.utils.ColorTemplate
+import com.github.mikephil.charting.components.XAxis
 
 class DashboardActivity : AppCompatActivity() {
+
     private lateinit var pieChart: PieChart
     private lateinit var barChart: BarChart
     private val db = FirebaseFirestore.getInstance()
@@ -38,6 +40,11 @@ class DashboardActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { documents ->
 
+                if (documents.isEmpty) {
+                    totalReportsText.text = "No data available"
+                    return@addOnSuccessListener
+                }
+
                 val total = documents.size()
                 var highRisk = 0
 
@@ -54,16 +61,21 @@ class DashboardActivity : AppCompatActivity() {
                     issueCount[issue] = issueCount.getOrDefault(issue, 0) + 1
                     riskCount[risk] = riskCount.getOrDefault(risk, 0) + 1
                 }
+
                 val mostCommon = issueCount.maxByOrNull { it.value }?.key ?: "None"
-                commonIssueText.text = "Most Common Issue: $mostCommon"
 
                 totalReportsText.text = "Total Reports: $total"
                 highRiskText.text = "High Risk Reports: $highRisk"
+                commonIssueText.text = "Most Common Issue: $mostCommon"
 
                 setupPieChart(riskCount)
                 setupBarChart(issueCount)
             }
+            .addOnFailureListener {
+                totalReportsText.text = "Error loading data"
+            }
     }
+
     private fun setupPieChart(riskCount: Map<String, Int>) {
 
         val entries = ArrayList<PieEntry>()
@@ -74,17 +86,22 @@ class DashboardActivity : AppCompatActivity() {
 
         val dataSet = PieDataSet(entries, "Risk Levels")
         dataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
+        dataSet.valueTextSize = 14f
 
         val data = PieData(dataSet)
-        data.setValueTextSize(14f)
 
         pieChart.data = data
         pieChart.description.isEnabled = false
         pieChart.centerText = "Risk Distribution"
+        pieChart.setUsePercentValues(true)
+        pieChart.setEntryLabelTextSize(12f)
+        pieChart.setCenterTextSize(16f)
+        pieChart.legend.isEnabled = true
         pieChart.animateY(1000)
 
         pieChart.invalidate()
     }
+
     private fun setupBarChart(issueCount: Map<String, Int>) {
 
         val entries = ArrayList<BarEntry>()
@@ -100,19 +117,24 @@ class DashboardActivity : AppCompatActivity() {
 
         val dataSet = BarDataSet(entries, "Issue Types")
         dataSet.colors = ColorTemplate.MATERIAL_COLORS.toList()
+        dataSet.valueTextSize = 12f
 
         val data = BarData(dataSet)
         data.barWidth = 0.9f
 
         barChart.data = data
         barChart.description.isEnabled = false
-        barChart.animateY(1000)
+        barChart.axisRight.isEnabled = false
+        barChart.setFitBars(true)
 
         barChart.xAxis.valueFormatter =
             com.github.mikephil.charting.formatter.IndexAxisValueFormatter(labels)
 
+        barChart.xAxis.position = XAxis.XAxisPosition.BOTTOM
         barChart.xAxis.granularity = 1f
         barChart.xAxis.setDrawGridLines(false)
+
+        barChart.animateY(1000)
 
         barChart.invalidate()
     }
