@@ -570,7 +570,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 origin = origin,
                 destination = dest,
                 waypoints = waypoint,
-                apiKey = "AIzaSyCZs0CcyHqeA31qqzJnVk5Mq6DoLaMONxM"
+                apiKey = "YOUR_API_KEY_HERE"
             )
 
             call.enqueue(object : retrofit2.Callback<DirectionsResponse> {
