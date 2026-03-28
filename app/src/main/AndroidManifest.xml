@@ -15,7 +15,7 @@
         android:theme="@style/Theme.SafeRoutePlus">
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_API_KEY_HERE"/>
+            android:value="AIzaSyCZs0CcyHqeA31qqzJnVk5Mq6DoLaMONxM"/>
         <activity
             android:name=".MainActivity"
             android:exported="true">

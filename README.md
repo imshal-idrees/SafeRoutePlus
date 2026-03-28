@@ -141,36 +141,18 @@ The map uses the following marker colours:
 ---
 
 ## 7. API Key Configuration
-For security reasons, a live API key is not included in this submission package.
 
-To run the map and directions features, the marker should create their own Google Maps Platform API key and insert it into the project before running the app.
+This project includes a Google Maps API key for demonstration purposes to allow the application to run immediately.
 
-### Step 1 – Create a Google Maps Platform API key
-1. Go to the Google Cloud Console.
-2. Sign in with a Google account.
-3. Create a new project, or select an existing one.
-4. In the Google Cloud Console, enable the APIs required by this app, such as:
-    - Maps SDK for Android
-    - Directions API
-5. Go to **APIs & Services** → **Credentials**
-6. Click **Create Credentials**
-7. Select **API key**
-8. Copy the generated API key
+### Important Notes
+- The API key is included to ensure markers can easily test the application without additional setup.
+- In a production environment, API keys should:
+    - not be hardcoded in source code
+    - be stored securely (e.g. environment variables)
+    - be restricted via the Google Cloud Console
 
-### Step 2 – Insert the API key into the project
-1. Open the project in Android Studio
-2. Press:
-    - `Command + Shift + F` on Mac
-    - `Ctrl + Shift + F` on Windows
-3. Search for:
-   `YOUR_API_KEY_HERE`
-4. Replace every occurrence of `YOUR_API_KEY_HERE` with the generated API key
-5. Save the files
-6. Sync Gradle if prompted
-7. Run the app
-
-### Notes
-- If the marker does not add an API key, the project source code can still be inspected, but map and directions functionality may not run correctly.
+### Security Considerations
+The key included in this project is restricted and intended only for academic use.
 
 ---
 
