@@ -16,5 +16,54 @@
     "longitude": -0.1195,
     "type": "Unsafe crossing",
     "severity": 2
-  }
-]
+  },
+
+    {
+      "latitude": 51.5870,
+      "longitude": -0.0720,
+      "type": "Robbery hotspot - Tottenham",
+      "severity": 3
+    },
+    {
+      "latitude": 51.5560,
+      "longitude": -0.0740,
+      "type": "Assault reports - Finsbury Park",
+      "severity": 3
+    },
+    {
+      "latitude": 51.5700,
+      "longitude": -0.1180,
+      "type": "Poor lighting - Archway",
+      "severity": 2
+    },
+    {
+      "latitude": 51.5450,
+      "longitude": -0.1020,
+      "type": "Theft hotspot - Holloway Road",
+      "severity": 2
+    },
+    {
+      "latitude": 51.5950,
+      "longitude": -0.1080,
+      "type": "Anti-social behaviour - Wood Green",
+      "severity": 2
+    },
+    {
+      "latitude": 51.6100,
+      "longitude": -0.1450,
+      "type": "Burglary cluster - Finchley",
+      "severity": 2
+    },
+    {
+      "latitude": 51.5650,
+      "longitude": -0.1350,
+      "type": "Unsafe crossing - Camden outskirts",
+      "severity": 1
+    },
+    {
+      "latitude": 51.5800,
+      "longitude": -0.0900,
+      "type": "Drug activity reports - Seven Sisters",
+      "severity": 3
+    }
+  ]

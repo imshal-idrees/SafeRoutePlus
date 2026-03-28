@@ -58,7 +58,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         resetStartButton.setOnClickListener {
             startInput.setText("")
             Toast.makeText(this, "Using default start (London)", Toast.LENGTH_SHORT).show()
-
         }
         val destinationInput = findViewById<EditText>(R.id.destinationInput)
 
@@ -217,6 +216,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             val (riskLevel, riskScore) = classifyRisk(descriptionText, issueType)
+            val aiCategory = classifySafetyText(descriptionText, issueType)
 
             val report = hashMapOf(
                 "latitude" to latLng.latitude,
@@ -225,6 +225,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 "description" to descriptionText,
                 "riskLevel" to riskLevel,
                 "riskScore" to riskScore,
+                "aiCategory" to aiCategory,
                 "timestamp" to System.currentTimeMillis()
             )
 
@@ -237,8 +238,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         MarkerOptions()
                             .position(latLng)
                             .title(issueType)
-                            .snippet(descriptionText)
-                            .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issueType)))
+                            .snippet("AI Category: $aiCategory\n$descriptionText")
+                            .icon(BitmapDescriptorFactory.defaultMarker(getAiCategoryColor(aiCategory)))
                     )
 
                     marker?.tag = documentReference.id
@@ -278,8 +279,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     if (selectedFilters.isNotEmpty() && !selectedFilters.contains(issue)) {
                         continue
                     }
-                    val description = doc.getString("description")
+                    val description = doc.getString("description") ?: ""
                     val riskLevel = doc.getString("riskLevel") ?: "LOW"
+                    val aiCategory = doc.getString("aiCategory") ?: "unsafe"
 
                     val position = LatLng(lat, lng)
                     heatmapPoints.add(position)
@@ -289,8 +291,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         MarkerOptions()
                             .position(position)
                             .title(issue)
-                            .snippet("Risk: $riskLevel\n$description\n$date")
-                            .icon(BitmapDescriptorFactory.defaultMarker(getMarkerColor(issue ?: "Other")))
+                            .snippet("AI: $aiCategory\nRisk: $riskLevel\n$description\n$date")
+                            .icon(BitmapDescriptorFactory.defaultMarker(getAiCategoryColor(aiCategory)))
                     )
 
                     marker?.tag = doc.id
@@ -317,7 +319,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     .position(position)
                     .title(point.type)
                     .snippet("Static dataset risk | Severity: ${point.severity}")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
             )
         }
     }
@@ -326,7 +328,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         loadReports()
         loadStaticRiskMarkers()
         val london = LatLng(51.5074, -0.1278)
-        mMap.addMarker(MarkerOptions().position(london).title("Marker in London"))
+        mMap.addMarker(
+            MarkerOptions()
+                .position(london)
+                .title("Start (Default)")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+        )
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(london, 8f))
         mMap.mapType = GoogleMap.MAP_TYPE_NORMAL
         mMap.uiSettings.isZoomControlsEnabled = true
@@ -453,6 +460,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             else -> BitmapDescriptorFactory.HUE_VIOLET
         }
     }
+
+    private fun getAiCategoryColor(aiCategory: String): Float {
+        return when (aiCategory.lowercase()) {
+            "safe" -> BitmapDescriptorFactory.HUE_GREEN
+            "unsafe" -> BitmapDescriptorFactory.HUE_RED
+            else -> BitmapDescriptorFactory.HUE_YELLOW
+        }
+    }
+
     private fun calculateSafetyScore(location: LatLng): Int {
 
         var nearbyReports = 0
@@ -607,21 +623,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                         // draw the routes
                         mMap.clear()
+                        loadReports()
+                        loadStaticRiskMarkers()
 
                         mMap.addMarker(
                             MarkerOptions()
                                 .position(originLatLng)
                                 .title("Start")
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
                         )
 
-                        mMap.addMarker(
-                            MarkerOptions()
-                                .position(destinationLatLng)
-                                .title("Destination")
-                        )
-
-                        loadReports()
-                        loadStaticRiskMarkers()
 
                         fastestPolyline = fastestRoute?.let {
                             mMap.addPolyline(
@@ -648,6 +659,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                                 MarkerOptions()
                                     .position(it)
                                     .title("Destination")
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
                             )
                         }
 
@@ -809,6 +821,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     )
                 }
 
+                for (point in staticRiskPoints) {
+                    heatmapData.add(
+                        WeightedLatLng(
+                            LatLng(point.latitude, point.longitude),
+                            point.severity.toDouble()
+                        )
+                    )
+                }
+
                 if (heatmapData.isEmpty()) {
                     Toast.makeText(this, "No data for heatmap", Toast.LENGTH_SHORT).show()
                     return@addOnSuccessListener
@@ -885,6 +906,32 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         return riskScore
     }
 
+    private fun classifySafetyText(description: String, issueType: String): String {
+        val text = description.lowercase()
+
+        val unsafeKeywords = listOf(
+            "dark", "no light", "followed", "attack", "knife",
+            "assault", "creepy", "unsafe", "harassment", "suspicious"
+        )
+
+        val safeKeywords = listOf(
+            "well lit", "busy area", "secure", "safe", "people around"
+        )
+
+        if (issueType == "Harassment" || issueType == "Suspicious Activity" || issueType == "Unsafe Path") {
+            return "unsafe"
+        }
+
+        for (word in unsafeKeywords) {
+            if (text.contains(word)) return "unsafe"
+        }
+
+        for (word in safeKeywords) {
+            if (text.contains(word)) return "safe"
+        }
+
+        return "unsafe"
+    }
     private fun classifyRisk(description: String, issueType: String): Pair<String, Int> {
 
         val text = description.lowercase()
