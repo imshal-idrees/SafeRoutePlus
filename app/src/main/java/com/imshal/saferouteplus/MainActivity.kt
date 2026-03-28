@@ -25,6 +25,8 @@ import com.google.android.gms.maps.model.PolylineOptions
 import com.google.maps.android.heatmaps.WeightedLatLng
 import com.google.android.gms.maps.model.TileOverlay
 import java.util.Locale
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 private var reportMode = false
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -40,12 +42,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private var heatmapVisible = true
     private lateinit var startInput: EditText
     private var selectedRoute: List<LatLng>? = null
+    private val staticRiskPoints = ArrayList<StaticRiskPoint>()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        loadStaticDataset()
 
         startInput = findViewById(R.id.startInput)
         val resetStartButton = findViewById<Button>(R.id.resetStartButton)
@@ -154,6 +159,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 .setPositiveButton("Apply") { _, _ ->
                     mMap.clear()
                     loadReports()
+                    loadStaticRiskMarkers()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
@@ -302,9 +308,23 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
     }
+    private fun loadStaticRiskMarkers() {
+        for (point in staticRiskPoints) {
+            val position = LatLng(point.latitude, point.longitude)
+
+            mMap.addMarker(
+                MarkerOptions()
+                    .position(position)
+                    .title(point.type)
+                    .snippet("Static dataset risk | Severity: ${point.severity}")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+            )
+        }
+    }
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         loadReports()
+        loadStaticRiskMarkers()
         val london = LatLng(51.5074, -0.1278)
         mMap.addMarker(MarkerOptions().position(london).title("Marker in London"))
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(london, 8f))
@@ -601,6 +621,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         )
 
                         loadReports()
+                        loadStaticRiskMarkers()
 
                         fastestPolyline = fastestRoute?.let {
                             mMap.addPolyline(
@@ -649,6 +670,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         mMap.clear()
         loadReports()
+        loadStaticRiskMarkers()
 
         val geocoder = Geocoder(this, Locale.getDefault())
 
@@ -804,15 +826,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 )
             }
     }
-
     private fun calculateRouteRiskValue(routePoints: List<LatLng>): Int {
 
         var riskScore = 0
 
+        // user submitted reports
         for (reportLocation in reportLocations) {
-
             for (point in routePoints) {
-
                 val results = FloatArray(1)
 
                 android.location.Location.distanceBetween(
@@ -829,6 +849,32 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     distance < 50 -> 3
                     distance < 100 -> 2
                     distance < 200 -> 1
+                    else -> 0
+                }
+
+                riskScore += weight
+            }
+        }
+
+        // static dataset points
+        for (staticPoint in staticRiskPoints) {
+            for (point in routePoints) {
+                val results = FloatArray(1)
+
+                android.location.Location.distanceBetween(
+                    point.latitude,
+                    point.longitude,
+                    staticPoint.latitude,
+                    staticPoint.longitude,
+                    results
+                )
+
+                val distance = results[0]
+
+                val weight = when {
+                    distance < 50 -> staticPoint.severity * 3
+                    distance < 100 -> staticPoint.severity * 2
+                    distance < 200 -> staticPoint.severity
                     else -> 0
                 }
 
@@ -865,6 +911,22 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             else -> {
                 Pair("LOW", 1)
             }
+        }
+    }
+    private fun loadStaticDataset() {
+        try {
+            val json = assets.open("crime_data.json")
+                .bufferedReader()
+                .use { it.readText() }
+
+            val type = object : TypeToken<List<StaticRiskPoint>>() {}.type
+            val points: List<StaticRiskPoint> = Gson().fromJson(json, type)
+
+            staticRiskPoints.clear()
+            staticRiskPoints.addAll(points)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Failed to load static dataset", Toast.LENGTH_SHORT).show()
         }
     }
 

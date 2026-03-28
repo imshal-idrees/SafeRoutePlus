@@ -1,0 +1,20 @@
+[
+  {
+    "latitude": 51.5074,
+    "longitude": -0.1278,
+    "type": "Robbery hotspot",
+    "severity": 3
+  },
+  {
+    "latitude": 51.5090,
+    "longitude": -0.1340,
+    "type": "Poor lighting",
+    "severity": 2
+  },
+  {
+    "latitude": 51.5033,
+    "longitude": -0.1195,
+    "type": "Unsafe crossing",
+    "severity": 2
+  }
+]
